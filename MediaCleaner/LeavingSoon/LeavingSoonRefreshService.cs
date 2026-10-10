@@ -2,6 +2,7 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using MediaBrowser.Controller.Library;
+using MediaBrowser.Controller.Session;
 using MediaCleaner.Adapters;
 using Microsoft.Extensions.Logging;
 
@@ -23,14 +24,16 @@ public sealed class LeavingSoonRefreshService : ILeavingSoonRefresher
         ILoggerFactory loggerFactory,
         ILibraryManager libraryManager,
         IUserDataManager userDataManager,
-        LeavingSoonCoordinator coordinator)
+        LeavingSoonCoordinator coordinator,
+        ISessionManager sessionManager)
     {
         _logger = loggerFactory.CreateLogger<LeavingSoonRefreshService>();
         _catalogAdapter = new JellyfinMediaCatalogAdapter(
             loggerFactory.CreateLogger<JellyfinMediaCatalogAdapter>(),
             userManager,
             libraryManager,
-            userDataManager);
+            userDataManager,
+            sessionManager: sessionManager);
         _coordinator = coordinator;
     }
 
