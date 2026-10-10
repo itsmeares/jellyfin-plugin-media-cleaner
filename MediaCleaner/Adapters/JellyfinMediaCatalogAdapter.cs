@@ -8,6 +8,7 @@ using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Entities.Movies;
 using MediaBrowser.Controller.Entities.TV;
 using MediaBrowser.Controller.Library;
+using MediaBrowser.Controller.Session;
 using MediaCleaner.Compatibility;
 using MediaCleaner.Core;
 using Microsoft.Extensions.Logging;
@@ -19,7 +20,8 @@ internal sealed class JellyfinMediaCatalogAdapter(
     IUserManager userManager,
     ILibraryManager libraryManager,
     IUserDataManager userDataManager,
-    IJellyfinTvHierarchyProvider? tvHierarchyProvider = null) : IMediaCatalogAdapter
+    IJellyfinTvHierarchyProvider? tvHierarchyProvider = null,
+    ISessionManager? sessionManager = null) : IMediaCatalogAdapter
 {
     private readonly IJellyfinTvHierarchyProvider tvHierarchyProvider = tvHierarchyProvider ?? new JellyfinTvHierarchyProvider();
 
@@ -41,7 +43,8 @@ internal sealed class JellyfinMediaCatalogAdapter(
             libraryManager,
             userDataManager,
             tvHierarchyProvider,
-            cancellationToken);
+            cancellationToken,
+            sessionManager is null ? null : JellyfinActivePlaybackGuard.Capture(sessionManager, libraryManager));
         var itemsById = new Dictionary<string, BaseItem>(StringComparer.OrdinalIgnoreCase);
         var mediaItems = new Dictionary<string, MediaItem>(StringComparer.OrdinalIgnoreCase);
 
@@ -369,7 +372,7 @@ internal sealed class JellyfinMediaCatalogAdapter(
             UserId: GetUserId(user),
             LastPlayedDate: data?.LastPlayedDate,
             IsPlayed: data?.Played ?? false,
-            IsWatching: data?.PlaybackPositionTicks != 0,
+            IsWatching: snapshot.IsCurrentlyWatching(user, item, data),
             IsFavorite: favoriteSource != FavoriteSourceKind.None,
             UserName: user.Username,
             HasUserData: data is not null,
@@ -628,6 +631,7 @@ internal sealed class JellyfinMediaCatalogAdapter(
         private readonly ILibraryManager libraryManager;
         private readonly IUserDataManager userDataManager;
         private readonly IJellyfinTvHierarchyProvider tvHierarchyProvider;
+        private readonly IReadOnlyDictionary<Guid, HashSet<Guid>>? livePlayback;
         private readonly Dictionary<ItemQueryKey, IReadOnlyList<BaseItem>> itemQueries = [];
         private readonly Dictionary<UserDataKey, UserItemData?> userData = [];
         private readonly Dictionary<Guid, Season?> seasonsById = [];
@@ -648,12 +652,14 @@ internal sealed class JellyfinMediaCatalogAdapter(
             ILibraryManager libraryManager,
             IUserDataManager userDataManager,
             IJellyfinTvHierarchyProvider tvHierarchyProvider,
-            CancellationToken cancellationToken)
+            CancellationToken cancellationToken,
+            IReadOnlyDictionary<Guid, HashSet<Guid>>? livePlayback)
         {
             Users = users;
             this.libraryManager = libraryManager;
             this.userDataManager = userDataManager;
             this.tvHierarchyProvider = tvHierarchyProvider;
+            this.livePlayback = livePlayback;
             this.cancellationToken = cancellationToken;
             seasonEpisodes = new SnapshotListCache<BaseItem>(GetItemId, cancellationToken);
             seriesEpisodes = new SnapshotListCache<BaseItem>(GetItemId, cancellationToken);
@@ -728,6 +734,11 @@ internal sealed class JellyfinMediaCatalogAdapter(
             itemQueries[key] = items;
             return items;
         }
+
+        public bool IsCurrentlyWatching(JellyfinUser user, BaseItem item, UserItemData? data) =>
+            livePlayback is null
+                ? data?.PlaybackPositionTicks != 0 // Preserve existing mock-backed tests without a session manager.
+                : JellyfinActivePlaybackGuard.IsWatching(livePlayback, user.Id, item.Id);
 
         public UserItemData? GetUserData(JellyfinUser user, BaseItem item)
         {
