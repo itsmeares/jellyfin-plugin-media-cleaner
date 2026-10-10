@@ -12,6 +12,7 @@ using System.Xml.Serialization;
 using MediaBrowser.Common;
 using MediaBrowser.Common.Api;
 using MediaBrowser.Controller.Library;
+using MediaBrowser.Controller.Session;
 using MediaBrowser.Model.Activity;
 using MediaBrowser.Model.Globalization;
 using MediaBrowser.Model.IO;
@@ -112,6 +113,7 @@ public class TroubleshootingController(
         var localization = scope.ServiceProvider.GetRequiredService<ILocalizationManager>();
         var fileSystem = scope.ServiceProvider.GetRequiredService<IFileSystem>();
         var leavingSoonCoordinator = scope.ServiceProvider.GetRequiredService<LeavingSoonCoordinator>();
+        var sessionManager = scope.ServiceProvider.GetRequiredService<ISessionManager>();
         var progress = new Progress<double>();
         var configurationSnapshot = Plugin.Instance!.Configuration;
         var pluginConfig = GetPrettyXml(configurationSnapshot);
@@ -127,7 +129,8 @@ public class TroubleshootingController(
             activityManager,
             localization,
             fileSystem,
-            leavingSoonCoordinator)
+            leavingSoonCoordinator,
+            sessionManager)
         {
             IsDryRun = true,
             PolicyOverride = policySnapshot,
