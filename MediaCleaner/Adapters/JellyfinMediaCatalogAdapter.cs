@@ -646,6 +646,18 @@ internal sealed class JellyfinMediaCatalogAdapter(
         private readonly Dictionary<string, IReadOnlyList<string>> seriesSeasonOrderIds = new(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, IReadOnlyList<SeriesPlaybackAnchor>> latestWatchedEpisodes = new(StringComparer.OrdinalIgnoreCase);
 
+        // Preserve the original constructor used by existing snapshot tests.
+        public SnapshotContext(
+            IReadOnlyList<JellyfinUser> users,
+            CleanupPolicy policy,
+            ILibraryManager libraryManager,
+            IUserDataManager userDataManager,
+            IJellyfinTvHierarchyProvider tvHierarchyProvider,
+            CancellationToken cancellationToken)
+            : this(users, policy, libraryManager, userDataManager, tvHierarchyProvider, cancellationToken, null)
+        {
+        }
+
         public SnapshotContext(
             IReadOnlyList<JellyfinUser> users,
             CleanupPolicy policy,
