@@ -1,0 +1,56 @@
+name: Fork active playback build
+
+on:
+  push:
+    branches:
+      - feature/active-playback-leaving-soon
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test-and-package:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Verify profile metadata
+        shell: pwsh
+        run: |
+          ./eng/generate-jellyfin-props.ps1
+          git diff --exit-code Directory.JellyfinProfiles.props
+
+      - name: Test (Jellyfin 12 ABI)
+        run: dotnet test MediaCleaner.Tests/MediaCleaner.Tests.csproj -c Release -p:JellyfinProfile=12.0
+
+      - name: Prepare package metadata
+        shell: pwsh
+        run: ./eng/write-build-yaml.ps1 -Profile 12.0 -OutputPath build.yaml
+
+      - name: Package plugin (Jellyfin 12)
+        id: package
+        uses: oddstr13/jellyfin-plugin-repository-manager@v1.1.1
+        env:
+          JellyfinProfile: "12.0"
+        with:
+          output: ./artifacts/12.0
+          dotnet-config: Release
+          dotnet-target: net10.0
+
+      - name: Name test build
+        run: cp "${{ steps.package.outputs.artifact }}" "artifacts/12.0/MediaCleaner-active-playback-JF12.zip"
+
+      - name: Upload plugin ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: MediaCleaner-active-playback-JF12
+          retention-days: 14
+          if-no-files-found: error
+          path: artifacts/12.0/MediaCleaner-active-playback-JF12.zip
