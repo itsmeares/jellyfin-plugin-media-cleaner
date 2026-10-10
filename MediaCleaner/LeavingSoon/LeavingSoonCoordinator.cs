@@ -336,7 +336,14 @@ public sealed class LeavingSoonCoordinator(
     {
         var generation = NormalizeNoticeGeneration(configuration.NoticeGeneration);
         var warningPolicy = BuildWarningPolicy(policy, configuration.NoticeDays, generation, snapshot);
-        var warningPlan = planner.Plan(new CleanupRequest(warningPolicy, catalog.Users, catalog.Items, false));
+        // Announce tagged media even while a user is actively watching it. Active
+        // sessions prevent actual deletion, not publication of a 14-day notice.
+        // Do not change the real cleanup snapshot or any persisted user watch data.
+        var announcementItems = catalog.Items.Select(item => item with
+        {
+            Playback = item.Playback.Select(playback => playback with { IsWatching = false }).ToArray(),
+        }).ToList();
+        var warningPlan = planner.Plan(new CleanupRequest(warningPolicy, catalog.Users, announcementItems, false));
         var rulesById = policy.Rules.ToDictionary(x => x.Id, StringComparer.OrdinalIgnoreCase);
         // Announce only what the cascade would delete. A complete-season decision stays in
         // Decisions even when a protected episode blocks it.
