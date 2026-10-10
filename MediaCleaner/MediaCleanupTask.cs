@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using MediaBrowser.Controller.Library;
+using MediaBrowser.Controller.Session;
 using MediaBrowser.Model.Activity;
 using MediaBrowser.Model.Globalization;
 using MediaBrowser.Model.IO;
@@ -57,7 +58,8 @@ public class MediaCleanupTask : IScheduledTask
         IActivityManager activityManager,
         ILocalizationManager localization,
         IFileSystem fileSystem,
-        LeavingSoonCoordinator leavingSoonCoordinator)
+        LeavingSoonCoordinator leavingSoonCoordinator,
+        ISessionManager sessionManager)
         : this(
             loggerFactory.CreateLogger<MediaCleanupTask>(),
             localization,
@@ -66,9 +68,10 @@ public class MediaCleanupTask : IScheduledTask
                 loggerFactory.CreateLogger<JellyfinMediaCatalogAdapter>(),
                 userManager,
                 libraryManager,
-                userDataManager),
+                userDataManager,
+                sessionManager: sessionManager),
             new CleanupPlanner(new SystemClock(), new JellyfinPathMatcher(fileSystem), new JellyfinExtraFileProbe()),
-            new JellyfinMutationAdapter(loggerFactory.CreateLogger<JellyfinMutationAdapter>(), libraryManager, activityManager, leavingSoonCoordinator),
+            new JellyfinMutationAdapter(loggerFactory.CreateLogger<JellyfinMutationAdapter>(), libraryManager, activityManager, leavingSoonCoordinator, sessionManager),
             leavingSoonCoordinator)
     {
     }
