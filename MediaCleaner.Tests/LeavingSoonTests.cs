@@ -40,6 +40,32 @@ public sealed class LeavingSoonTests : IDisposable
     }
 
     [Fact]
+    public async Task ActiveViewerIsAnnouncedWithoutResettingNoticeOrPlaybackData()
+    {
+        var fixture = CreateFixture();
+        var created = fixture.Clock.UtcNow.AddDays(-27);
+        var item = CreateItem(ItemId, MediaItemKind.Movie, created) with
+        {
+            Playback = [new PlaybackState(UserId, null, false, true, false)],
+            Tags = ["leaving-soon"],
+        };
+        var catalog = new CleanupCatalog([], [item], new Dictionary<string, BaseItem>(), new Dictionary<string, JellyfinUser>());
+
+        await fixture.Coordinator.PrepareAsync(CreatePolicy(30), catalog, Enabled(), CancellationToken.None);
+
+        fixture.Publisher.ItemIds.Should().Contain(ItemId);
+        var first = fixture.Coordinator.ReadState().Warnings.Single();
+        first.NotBeforeDeleteUtc.Should().Be(fixture.Clock.UtcNow.AddDays(7));
+        item.Playback.Single().IsWatching.Should().BeTrue("notice creation must not mutate playback state");
+
+        fixture.Clock.UtcNow = fixture.Clock.UtcNow.AddDays(2);
+        await fixture.Coordinator.PrepareAsync(CreatePolicy(30), catalog, Enabled(), CancellationToken.None);
+
+        fixture.Publisher.ItemIds.Should().Contain(ItemId);
+        fixture.Coordinator.ReadState().Warnings.Single().NotBeforeDeleteUtc.Should().Be(first.NotBeforeDeleteUtc);
+    }
+
+    [Fact]
     public async Task FavoriteAndTagEligibilityComesFromRulesOnly()
     {
         var fixture = CreateFixture();
