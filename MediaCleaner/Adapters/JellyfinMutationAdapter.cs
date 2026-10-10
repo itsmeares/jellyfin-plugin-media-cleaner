@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using MediaBrowser.Controller.Library;
+using MediaBrowser.Controller.Session;
 using MediaBrowser.Model.Activity;
 using MediaCleaner.Compatibility;
 using MediaCleaner.Core;
@@ -18,7 +19,8 @@ internal sealed class JellyfinMutationAdapter(
     ILogger<JellyfinMutationAdapter> logger,
     ILibraryManager libraryManager,
     IActivityManager activityManager,
-    LeavingSoonCoordinator? leavingSoonCoordinator = null) : IMediaMutationAdapter
+    LeavingSoonCoordinator? leavingSoonCoordinator = null,
+    ISessionManager? sessionManager = null) : IMediaMutationAdapter
 {
     public async Task ExecuteAsync(CleanupPlan plan, CleanupCatalog catalog, CancellationToken cancellationToken)
     {
@@ -37,6 +39,28 @@ internal sealed class JellyfinMutationAdapter(
             {
                 logger.LogWarning("Skipping deletion for unknown item id {ItemId}", operation.ItemId);
                 continue;
+            }
+
+            // A user may start playback after the planner snapshot. Recheck at the
+            // last possible moment, including episodes within series/season deletes.
+            if (sessionManager is not null)
+            {
+                bool active;
+                try
+                {
+                    active = JellyfinActivePlaybackGuard.BlocksDeletion(item, sessionManager, libraryManager);
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, "Unable to verify active playback for {Name}; skipping deletion for safety", operation.Name);
+                    continue;
+                }
+
+                if (active)
+                {
+                    logger.LogInformation("Skipping deletion of {Name} because it is actively playing", operation.Name);
+                    continue;
+                }
             }
 
             var deleted = false;
